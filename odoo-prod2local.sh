@@ -153,6 +153,9 @@ load_config() {
     done
     [[ $PROJECT_NAME =~ ^[A-Za-z0-9_.-]+$ ]]  || die "PROJECT_NAME solo admite letras, números, _ . -"
     BACKUP_TAG="$PROJECT_NAME"
+    # REMOTE_COMPOSE_FILE vacío = sin -f (compose usa su fichero por defecto)
+    REMOTE_COMPOSE_OPT=""
+    if [[ -n $REMOTE_COMPOSE_FILE ]]; then REMOTE_COMPOSE_OPT="-f \"$REMOTE_COMPOSE_FILE\""; fi
     # '~' dentro de comillas no se expande: lo hacemos aquí para las rutas locales
     LOCAL_DOCKER_PATH="${LOCAL_DOCKER_PATH/#\~/$HOME}"
     LOCAL_BACKUP_DIR="${LOCAL_BACKUP_DIR/#\~/$HOME}"
@@ -239,7 +242,7 @@ EOF
   odoo-prod2local  |  $PROJECT_NAME
 ================================================================
   Origen   : $origen
-  Remoto   : $SSH_USER@$SSH_HOST:$SSH_PORT  ($REMOTE_DOCKER_PATH, $REMOTE_COMPOSE_FILE, db=$REMOTE_DB)
+  Remoto   : $SSH_USER@$SSH_HOST:$SSH_PORT  ($REMOTE_DOCKER_PATH, ${REMOTE_COMPOSE_FILE:-compose por defecto}, db=$REMOTE_DB)
   Auth     : $auth
   Local    : $LOCAL_DOCKER_PATH  ($LOCAL_COMPOSE_FILE, db=$LOCAL_DB, restore jobs=$RESTORE_JOBS)
   Backups  : $LOCAL_BACKUP_DIR   (conserva: local=$KEEP_LOCAL, remoto=$KEEP_REMOTE)
@@ -273,7 +276,7 @@ space_check() {
 set -euo pipefail
 mkdir -p "$REMOTE_BACKUP_DIR"
 cd "$REMOTE_DOCKER_PATH"
-size=\$($REMOTE_COMPOSE_BIN -f "$REMOTE_COMPOSE_FILE" run --rm -T $REMOTE_SERVICE psql -tA "$REMOTE_DB" -c "select pg_database_size(current_database())" </dev/null | grep -E '^[0-9]+\$' | tail -1 || true)
+size=\$($REMOTE_COMPOSE_BIN $REMOTE_COMPOSE_OPT run --rm -T $REMOTE_SERVICE psql -tA "$REMOTE_DB" -c "select pg_database_size(current_database())" </dev/null | grep -E '^[0-9]+\$' | tail -1 || true)
 avail=\$(df -B1 --output=avail "$REMOTE_BACKUP_DIR" | tail -1 | tr -d ' ')
 echo "SPACE \${size:-0} \$avail"
 EOF
@@ -297,7 +300,7 @@ remote_dump() {
 set -euo pipefail
 mkdir -p "$REMOTE_BACKUP_DIR"
 cd "$REMOTE_DOCKER_PATH"
-$REMOTE_COMPOSE_BIN -f "$REMOTE_COMPOSE_FILE" run --rm -T -v "$REMOTE_BACKUP_DIR:/backup" $REMOTE_SERVICE pg_dump $PG_DUMP_OPTS -Fd -j $DUMP_JOBS -Z $COMPRESS_LEVEL -f "/backup/$item" "$REMOTE_DB" </dev/null
+$REMOTE_COMPOSE_BIN $REMOTE_COMPOSE_OPT run --rm -T -v "$REMOTE_BACKUP_DIR:/backup" $REMOTE_SERVICE pg_dump $PG_DUMP_OPTS -Fd -j $DUMP_JOBS -Z $COMPRESS_LEVEL -f "/backup/$item" "$REMOTE_DB" </dev/null
 cd "$REMOTE_BACKUP_DIR"
 tar -czf "$BACKUP_NAME.tar.gz" "$item"
 rm -rf "$item"
@@ -307,7 +310,7 @@ EOF
 set -euo pipefail
 mkdir -p "$REMOTE_BACKUP_DIR"
 cd "$REMOTE_DOCKER_PATH"
-$REMOTE_COMPOSE_BIN -f "$REMOTE_COMPOSE_FILE" run --rm -T $REMOTE_SERVICE pg_dump $PG_DUMP_OPTS "$REMOTE_DB" </dev/null | grep -v "doodba INFO:" > "$REMOTE_BACKUP_DIR/$item"
+$REMOTE_COMPOSE_BIN $REMOTE_COMPOSE_OPT run --rm -T $REMOTE_SERVICE pg_dump $PG_DUMP_OPTS "$REMOTE_DB" </dev/null | grep -v "doodba INFO:" > "$REMOTE_BACKUP_DIR/$item"
 cd "$REMOTE_BACKUP_DIR"
 tar -czf "$BACKUP_NAME.tar.gz" "$item"
 rm -f "$item"

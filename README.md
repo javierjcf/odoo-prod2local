@@ -152,7 +152,7 @@ Leyenda de la columna **Obligatoria**:
 |---|---|---|---|---|
 | `REMOTE_DOCKER_PATH` | **Sí** | — | Carpeta del proyecto en el servidor, donde está `prod.yaml`. | `"/opt/odoo/did_v18"` |
 | `LOCAL_DOCKER_PATH` | **Sí** | — | Carpeta del proyecto en tu máquina, donde está `devel.yaml`. Debe existir. | `"/opt/odoo/did_v18"` |
-| `REMOTE_COMPOSE_FILE` | No | `prod.yaml` | Fichero compose del servidor. | `"prod.yaml"` |
+| `REMOTE_COMPOSE_FILE` | No | `prod.yaml` | Fichero compose del servidor. Vacío (`""`) = no pasa `-f` y compose usa su fichero por defecto. | `"prod.yaml"` |
 | `LOCAL_COMPOSE_FILE` | No | `devel.yaml` | Fichero compose local. | `"devel.yaml"` |
 | `REMOTE_COMPOSE_BIN` | No | `docker compose` | Comando compose del servidor. | `"docker-compose"` |
 | `LOCAL_COMPOSE_BIN` | No | `docker compose` | Comando compose local. | `"docker-compose"` |
