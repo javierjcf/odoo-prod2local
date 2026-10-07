@@ -27,6 +27,7 @@ usage() {
 Uso: ${0##*/} <proyecto|ruta.conf> [opciones]
 
   -f, --filestore      traer también el filestore (rsync). Por defecto NO.
+      --only-filestore traer SOLO el filestore (no toca BBDD, backups ni contenedores)
       --from-local     NO tocar el servidor: restaurar el último backup local
       --backup NOMBRE  restaurar ese backup local (nombre o ruta; implica --from-local)
       --list-backups   listar backups del proyecto (local y remoto) y salir
@@ -96,10 +97,11 @@ PROJECT_NAME=""           # OBLIGATORIO: nombre del proyecto (sufijo de los back
 # Argumentos
 # -----------------------------------------------------------------------------
 PROJECT_ARG=""; OPT_FILESTORE=""; OPT_UPDATE=""; OPT_NEUTRALIZE=""; OPT_BACKUP=""
-OPT_SPACE=""; DRY_RUN=false; FROM_LOCAL=false; LIST_BACKUPS=false
+OPT_SPACE=""; DRY_RUN=false; FROM_LOCAL=false; LIST_BACKUPS=false; ONLY_FILESTORE=false
 while (($#)); do
     case "$1" in
         -f|--filestore)    OPT_FILESTORE=true ;;
+        --only-filestore)  ONLY_FILESTORE=true; OPT_FILESTORE=true ;;
         --from-local)      FROM_LOCAL=true ;;
         --backup)          [[ $# -ge 2 ]] || die "--backup necesita un valor"
                            OPT_BACKUP=$2; FROM_LOCAL=true; shift ;;
@@ -116,6 +118,9 @@ while (($#)); do
     shift
 done
 [[ -n $PROJECT_ARG ]] || { usage; exit 1; }
+if $ONLY_FILESTORE && { $FROM_LOCAL || $LIST_BACKUPS; }; then
+    die "--only-filestore no se combina con --from-local, --backup ni --list-backups"
+fi
 [[ $(id -u) != 0 ]] || die "No ejecutar como root."
 
 # -----------------------------------------------------------------------------
@@ -160,7 +165,9 @@ load_config() {
     [[ -d $LOCAL_DOCKER_PATH ]]               || die "No existe LOCAL_DOCKER_PATH: $LOCAL_DOCKER_PATH"
     [[ -f $LOCAL_DOCKER_PATH/$LOCAL_COMPOSE_FILE ]] || die "No existe $LOCAL_DOCKER_PATH/$LOCAL_COMPOSE_FILE"
 
-    if $FROM_LOCAL; then
+    if $ONLY_FILESTORE; then
+        LOCAL_ARCHIVE=""
+    elif $FROM_LOCAL; then
         pick_local_archive
     else
         BACKUP_NAME="$(date +%Y-%m-%d_%H-%M)_${BACKUP_TAG}"
@@ -210,6 +217,18 @@ human()         { numfmt --to=iec --suffix=B "$1" 2>/dev/null || echo "$1 B"; }
 
 print_summary() {
     local auth origen
+    if $ONLY_FILESTORE; then
+        cat <<EOF
+================================================================
+  odoo-prod2local  |  $PROJECT_NAME  |  SOLO FILESTORE
+================================================================
+  Origen : $SSH_USER@$SSH_HOST:$SSH_PORT  $REMOTE_FILESTORE
+  Destino: $LOCAL_FILESTORE   (rsync --delete; sudo remoto=$REMOTE_RSYNC_SUDO, local=$LOCAL_RSYNC_SUDO)
+  No se toca: BBDD, contenedores ni backups
+================================================================
+EOF
+        return 0
+    fi
     if   [[ -n $SSH_KEY ]];                  then auth="clave $SSH_KEY"
     elif [[ -n $SSH_PASS || -n $SSH_PASS_CMD ]]; then auth="password (sshpass)"
     else auth="ssh por defecto (agente/claves)"; fi
@@ -397,6 +416,14 @@ main() {
     if $LIST_BACKUPS; then setup_ssh; list_backups; return 0; fi
     print_summary
     if $DRY_RUN; then log "Dry-run: no se ha ejecutado nada."; return 0; fi
+
+    if $ONLY_FILESTORE; then
+        setup_ssh
+        preflight
+        sync_filestore
+        log "HECHO :)  filestore de $PROJECT_NAME sincronizado en $LOCAL_FILESTORE"
+        return 0
+    fi
     mkdir -p "$LOCAL_BACKUP_DIR"
 
     if needs_ssh; then setup_ssh; fi

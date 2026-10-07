@@ -41,6 +41,7 @@ Ejemplos reales: `conf/did_v18.conf` y `conf/delete_v18.conf`.
 | Opción | Qué hace |
 |---|---|
 | `-f`, `--filestore` | Trae también el filestore con rsync (`--delete`). Por defecto **no** se trae. |
+| `--only-filestore` | Trae **solo el filestore**, sin tocar la BBDD, los contenedores ni los backups. Ver «Traer solo el filestore». |
 | `--from-local` | **No toca el servidor**: restaura el último backup local del proyecto. |
 | `--backup NOMBRE` | Restaura ese backup local (nombre con o sin `.tar.gz`, o ruta). Implica `--from-local`. |
 | `--list-backups` | Lista los backups del proyecto, locales y remotos. |
@@ -88,6 +89,19 @@ no hace falta volver a pedir el dump a producción:
 ```
 En este modo no se conecta al servidor (salvo que pidas `--filestore`) y no rota backups.
 También sirve para **volver a un estado anterior** de la BBDD cuando quieras.
+
+### Traer solo el filestore
+Si ya tienes la BBDD y solo te falta (o quieres refrescar) el filestore, en cualquier momento:
+
+```bash
+./odoo-prod2local.sh delete_v18 --only-filestore
+./odoo-prod2local.sh delete_v18 --only-filestore --dry-run    # ver origen y destino antes
+```
+Solo hace la etapa de filestore: no genera dump, no para ni arranca contenedores, no toca
+la BBDD ni rota backups. Usa `REMOTE_FILESTORE` / `LOCAL_FILESTORE` del `.conf` (obligatorias
+en este modo) y los mismos permisos sudo que con `--filestore`. El rsync usa `--delete`, así
+que `LOCAL_FILESTORE` queda idéntico al del servidor. No se combina con `--from-local`,
+`--backup` ni `--list-backups`.
 
 ### Limpiar la copia remota
 `KEEP_REMOTE` controla cuántos backups del proyecto quedan en el servidor al terminar:
